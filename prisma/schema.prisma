@@ -1,0 +1,181 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─── CLINIC (Multi-tenant) ───
+model Clinic {
+  clinicid     Int    @id @default(autoincrement())
+  name         String @unique @db.VarChar(200)
+  slug         String @unique @db.VarChar(100)
+  customDomain String @default("") @db.VarChar(200)
+  logo         String @default("") @db.VarChar(500)
+  phone        String @default("") @db.VarChar(30)
+  email        String @default("") @db.VarChar(200)
+  address      String @default("") @db.VarChar(500)
+  city         String @default("") @db.VarChar(100)
+  plan         String @default("free") @db.VarChar(20)
+  status       String @default("active") @db.VarChar(20)
+  maxDoctors   Int    @default(1)
+  maxPatients  Int    @default(50)
+  primaryColor String @default("#0A76D8") @db.VarChar(20)
+  createdAt    String @default("")
+
+  admins               ClinicAdmin[]
+  doctors              Doctor[]
+  patients             Patient[]
+  schedules            Schedule[]
+  appointments         Appointment[]
+  prescriptions        Prescription[]
+  notifications        Notification[]
+  specialties          ClinicSpecialty[]
+}
+
+// ─── SUPER ADMIN ───
+model SuperAdmin {
+  id       Int    @id @default(autoincrement())
+  email    String @unique @db.VarChar(200)
+  password String @db.VarChar(200)
+  name     String @default("") @db.VarChar(200)
+}
+
+// ─── CLINIC ADMIN ───
+model ClinicAdmin {
+  id       Int    @id @default(autoincrement())
+  clinicid Int
+  email    String @db.VarChar(200)
+  password String @db.VarChar(200)
+  name     String @default("") @db.VarChar(200)
+  phone    String @default("") @db.VarChar(30)
+
+  clinic Clinic @relation(fields: [clinicid], references: [clinicid], onDelete: Cascade)
+
+  @@unique([clinicid, email])
+}
+
+// ─── CLINIC SPECIALTIES ───
+model ClinicSpecialty {
+  id       Int @id @default(autoincrement())
+  clinicid Int
+  name     String @db.VarChar(100)
+
+  clinic  Clinic  @relation(fields: [clinicid], references: [clinicid], onDelete: Cascade)
+  doctors Doctor[]
+
+  @@unique([clinicid, name])
+}
+
+// ─── DOCTOR ───
+model Doctor {
+  docid       Int    @id @default(autoincrement())
+  clinicid    Int
+  docemail    String @db.VarChar(200)
+  docname     String @db.VarChar(200)
+  docpassword String @db.VarChar(200)
+  docnic      String @default("") @db.VarChar(100)
+  doctel      String @default("") @db.VarChar(30)
+  specialties Int?
+
+  clinic    Clinic           @relation(fields: [clinicid], references: [clinicid])
+  specialty ClinicSpecialty?  @relation(fields: [specialties], references: [id])
+  schedules Schedule[]
+  prescriptions Prescription[]
+
+  @@unique([clinicid, docemail])
+}
+
+// ─── PATIENT ───
+model Patient {
+  pid        Int    @id @default(autoincrement())
+  clinicid   Int
+  pemail     String @db.VarChar(200)
+  pname      String @db.VarChar(200)
+  ppassword  String @db.VarChar(200)
+  paddress   String @default("") @db.VarChar(500)
+  pnic       String @default("") @db.VarChar(100)
+  pdob       String @default("") @db.VarChar(20)
+  ptel       String @default("") @db.VarChar(30)
+
+  clinic        Clinic         @relation(fields: [clinicid], references: [clinicid])
+  appointments  Appointment[]
+  prescriptions Prescription[]
+  notifications Notification[]
+
+  @@unique([clinicid, pemail])
+}
+
+// ─── SCHEDULE ───
+model Schedule {
+  scheduleid   Int    @id @default(autoincrement())
+  clinicid     Int
+  title        String @default("") @db.VarChar(200)
+  docid        Int
+  scheduledate String @db.VarChar(20)
+  scheduletime String @db.VarChar(20)
+  nop          Int    @default(1)
+
+  clinic       Clinic        @relation(fields: [clinicid], references: [clinicid])
+  doctor       Doctor        @relation(fields: [docid], references: [docid])
+  appointments Appointment[]
+}
+
+// ─── APPOINTMENT ───
+model Appointment {
+  appoid     Int    @id @default(autoincrement())
+  clinicid   Int
+  pid        Int
+  scheduleid Int
+  apponum    Int    @default(1)
+  appodate   String @default("") @db.VarChar(20)
+
+  clinic        Clinic        @relation(fields: [clinicid], references: [clinicid])
+  patient       Patient       @relation(fields: [pid], references: [pid])
+  schedule      Schedule      @relation(fields: [scheduleid], references: [scheduleid])
+  notifications Notification[]
+}
+
+// ─── PRESCRIPTION ───
+model Prescription {
+  prescriptionid  Int    @id @default(autoincrement())
+  clinicid        Int
+  pid             Int
+  docid           Int
+  diagnosis       String @default("") @db.VarChar(500)
+  medicines       String @db.Text
+  notes           String @default("") @db.VarChar(500)
+  followUpDate    String @default("") @db.VarChar(20)
+  createdDate     String @default("") @db.VarChar(20)
+
+  clinic        Clinic         @relation(fields: [clinicid], references: [clinicid])
+  patient       Patient         @relation(fields: [pid], references: [pid], onDelete: Cascade)
+  doctor        Doctor          @relation(fields: [docid], references: [docid], onDelete: Cascade)
+  notifications Notification[]
+}
+
+// ─── NOTIFICATION ───
+model Notification {
+  id             Int    @id @default(autoincrement())
+  clinicid       Int    @default(0)
+  type           String @db.VarChar(50)
+  title          String @default("") @db.VarChar(200)
+  message        String @db.Text
+  patientPhone   String @default("") @db.VarChar(30)
+  patientId      Int?
+  prescriptionId Int?
+  appointmentId  Int?
+  scheduleId     Int?
+  status         String @default("pending") @db.VarChar(20)
+  scheduledAt    String @default("")
+  sentAt         String @default("")
+  createdAt      String @default("")
+  waDeepLink     String @default("") @db.VarChar(1000)
+
+  clinic        Clinic?        @relation(fields: [clinicid], references: [clinicid])
+  patient       Patient?       @relation(fields: [patientId], references: [pid], onDelete: SetNull)
+  prescription  Prescription?  @relation(fields: [prescriptionId], references: [prescriptionid], onDelete: SetNull)
+  appointment   Appointment?   @relation(fields: [appointmentId], references: [appoid], onDelete: SetNull)
+}
